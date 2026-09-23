@@ -1,11 +1,10 @@
-import { getEvents, addEvent, seedCalendar } from "@/lib/calendar";
+import { getEvents, addEvent } from "@/lib/calendar";
 import { jsonResponse } from "@/lib/http/response";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  await seedCalendar();
   const url = new URL(request.url);
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");

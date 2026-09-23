@@ -173,29 +173,3 @@ export async function removeEvent(id: string): Promise<boolean> {
   });
   return existed;
 }
-
-/** Seeds a demo event so the calendar + "prepare meeting" flows are demonstrable. */
-export async function seedCalendar(force = false): Promise<void> {
-  const existing = await readStore();
-  if (existing.length > 0 && !force) return;
-  if (existing.length === 0) {
-    const now = new Date();
-    const demo = new Date(now);
-    demo.setHours(14, 0, 0, 0);
-    if (demo.getTime() < now.getTime()) demo.setDate(demo.getDate() + 1);
-    await queueWrite((events) => {
-      events.push({
-        id: randomUUID(),
-        title: "Client Meeting",
-        start: demo.toISOString(),
-        end: new Date(demo.getTime() + 60 * 60_000).toISOString(),
-        location: "Conference Room",
-        notes: "Quarterly review — bring the previous proposal and client folder.",
-        color: "#22d3ee",
-        createdAt: new Date().toISOString(),
-      });
-      return events;
-    });
-    await fs.mkdir(DATA_DIR, { recursive: true });
-  }
-}

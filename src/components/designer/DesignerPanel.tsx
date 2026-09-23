@@ -63,7 +63,7 @@ export function DesignerPanel() {
         ) : images.length === 0 ? (
           <div className="text-center py-10">
             <p className="text-[11px] font-mono text-slate-600 mb-2">No PNG/JPEG images found in the workspace.</p>
-            <p className="text-[10px] font-mono text-slate-700">Drop an artwork file into data/fixtures to test the inspector.</p>
+            <p className="text-[10px] font-mono text-slate-700">Drop a PNG/JPEG artwork file anywhere in the workspace to inspect it.</p>
           </div>
         ) : (
           <div className="space-y-1 max-h-[70vh] overflow-y-auto pr-1">
