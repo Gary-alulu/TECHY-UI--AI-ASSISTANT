@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Message } from "@/types";
 import { cn } from "@/lib/utils";
+import { useBrand } from "@/context/BrandContext";
 import { ToolExecutionCard } from "./ToolExecutionCard";
 import { Markdown } from "./Markdown";
 import { FileActionCards } from "./FileActionCard";
@@ -18,6 +19,7 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, onCopy, onRegenerate, onFileAction }: MessageBubbleProps) {
+  const { brand, accent } = useBrand();
   const [mounted, setMounted] = useState(false);
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
@@ -60,14 +62,14 @@ export function MessageBubble({ message, onCopy, onRegenerate, onFileAction }: M
             : "bg-cyan-950 border border-cyan-400/30 text-cyan-400 glow-cyan"
         )}
       >
-        {isUser ? <User size={16} /> : <span className="font-display font-bold">T</span>}
+        {isUser ? <User size={16} /> : <span className="font-display font-bold" style={{ color: accent.hex }}>{brand.aiName.charAt(0).toUpperCase()}</span>}
       </div>
 
       {/* Content */}
       <div className={cn("flex flex-col gap-2 min-w-0", isUser ? "items-end" : "items-start")}>
         {/* Timestamp & Name */}
         <div className="flex items-center gap-2 text-xs text-slate-500 font-mono">
-          <span>{isUser ? "You" : "TECHY"}</span>
+          <span>{isUser ? "You" : brand.aiName}</span>
           <span>•</span>
           <span>{mounted ? message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</span>
         </div>

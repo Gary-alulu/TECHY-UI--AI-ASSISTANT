@@ -5,6 +5,7 @@ import { MessageBubble } from "./MessageBubble";
 import { AIInput } from "../ai/AIInput";
 import { GlassPanel } from "../ui/GlassPanel";
 import { HUDButton } from "../ui/HUDButton";
+import { useBrand } from "@/context/BrandContext";
 import {
   AlertTriangle,
   ChevronLeft,
@@ -90,6 +91,7 @@ function isTextAttachment(file: File): boolean {
 }
 
 export function ChatInterface() {
+  const { brand, accent } = useBrand();
   const [initialLoading, setInitialLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -639,10 +641,10 @@ export function ChatInterface() {
   };
 
   const exportMarkdown = useCallback(() => {
-    const lines = [`# ${title}`, "", ...messages.map((message) => `**${message.role === "user" ? "You" : "TECHY"}**\n\n${message.content}\n`)];
+    const exported = [`# ${title}`, "", ...messages.map((message) => `**${message.role === "user" ? "You" : brand.aiName}**\n\n${message.content}\n`)];
     const safeTitle = title.replace(/[\\/:*?"<>|]/g, "_") || "conversation";
-    download(`${safeTitle}.md`, lines.join("\n"), "text/markdown;charset=utf-8");
-  }, [title, messages]);
+    download(`${safeTitle}.md`, exported.join("\n"), "text/markdown;charset=utf-8");
+  }, [title, messages, brand.aiName]);
 
   const exportJson = useCallback(() => {
     const payload = messages.map((message) => ({
@@ -832,12 +834,12 @@ export function ChatInterface() {
             ) : messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center min-h-[55vh] gap-5 text-center">
                 <div className="w-16 h-16 rounded-xl bg-cyan-950 border border-cyan-400/30 text-cyan-400 flex items-center justify-center glow-cyan">
-                  <span className="font-display font-bold text-2xl">T</span>
+                  <span className="font-display font-bold text-2xl">{brand.aiName.charAt(0).toUpperCase()}</span>
                 </div>
                 <div>
                   <h2 className="text-2xl font-display font-medium text-slate-100 tracking-wide">What can I do for you today?</h2>
                   <p className="text-sm text-slate-400 mt-2 max-w-md">
-                    TECHY runs fully local. Ask about your system resources, files, or installed apps — nothing leaves your machine.
+                    {brand.aiName} runs fully local. Ask about your system resources, files, or installed apps — nothing leaves your machine.
                   </p>
                 </div>
                 <div className="flex flex-wrap justify-center gap-2 max-w-lg">
@@ -860,10 +862,10 @@ export function ChatInterface() {
                 {sending && (
                   <div className="flex gap-4">
                     <div className="w-8 h-8 shrink-0 rounded flex items-center justify-center mt-1 bg-cyan-950 border border-cyan-400/30 text-cyan-400 glow-cyan">
-                      <span className="font-display font-bold">T</span>
+                      <span className="font-display font-bold" style={{ color: accent.hex }}>{brand.aiName.charAt(0).toUpperCase()}</span>
                     </div>
                     <div className="flex items-center justify-between gap-3 px-5 py-3.5 rounded-2xl bg-navy-950/80 border border-cyan-400/10 text-sm text-slate-400 rounded-tl-sm">
-                      {runStatus ? <span className="animate-pulse">{runStatus}…</span> : <span>TECHY is thinking…</span>}
+                      {runStatus ? <span className="animate-pulse">{runStatus}…</span> : <span>{brand.aiName} is thinking…</span>}
                       <button
                         onClick={stopGeneration}
                         className="flex items-center gap-1 text-[11px] font-mono text-red-400 hover:text-red-300 ml-4 transition-colors"

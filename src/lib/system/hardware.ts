@@ -12,6 +12,8 @@ import type {
   NetworkInterfaceInfo,
   NetworkMetric,
   ProcessInfo,
+  StartupApp,
+  TemperatureInfo,
 } from "@/types";
 
 const GB = 1024 ** 3;
@@ -765,4 +767,162 @@ export function getGpuUtilization(gpu: GpuInfo): number | null {
   }
 
   return gpuUtilization.value;
+}
+
+// ── Temperatures ───────────────────────────────────────
+
+const TEMP_TTL_MS = 5000;
+
+let temperatureCache: { value: TemperatureInfo; at: number } | null = null;
+
+function sanitizeTemperature(value: number): number | null {
+  return Number.isFinite(value) && value > -50 && value < 150 ? value : null;
+}
+
+async function readCpuTemperatureWindows(): Promise<number | null> {
+  try {
+    const script =
+      "$ErrorActionPreference='SilentlyContinue'; $z = Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty CurrentTemperature; if ($null -ne $z) { [math]::Round($z/10 - 273.15, 1) }";
+    const stdout = await powershell(script, 7000);
+    return sanitizeTemperature(Number(stdout.trim()));
+  } catch {
+    return null;
+  }
+}
+
+async function readCpuTemperatureLinux(): Promise<number | null> {
+  for (const zone of ["thermal_zone0", "thermal_zone1"]) {
+    try {
+      const raw = await fs.readFile(`/sys/class/thermal/${zone}/temp`, "utf8");
+      const milli = Number.parseInt(raw.trim(), 10);
+      if (!Number.isFinite(milli)) continue;
+      return sanitizeTemperature(milli / 1000);
+    } catch {
+      // try the next zone
+    }
+  }
+  return null;
+}
+
+async function readCpuTemperature(): Promise<number | null> {
+  if (process.platform === "win32") return readCpuTemperatureWindows();
+  if (process.platform === "linux") return readCpuTemperatureLinux();
+  return null;
+}
+
+async function readGpuTemperature(): Promise<number | null> {
+  try {
+    const stdout = await execFileAsync(
+      "nvidia-smi",
+      ["--query-gpu=temperature.gpu", "--format=csv,noheader,nounits"],
+      5000
+    );
+    const line = stdout.split("\n").map((value) => value.trim()).filter(Boolean)[0];
+    return sanitizeTemperature(Number(line));
+  } catch {
+    return null;
+  }
+}
+
+export async function getTemperatureInfo(): Promise<TemperatureInfo> {
+  if (temperatureCache && Date.now() - temperatureCache.at < TEMP_TTL_MS) {
+    return temperatureCache.value;
+  }
+  const value = {
+    cpu: await readCpuTemperature(),
+    gpu: await readGpuTemperature(),
+  };
+  temperatureCache = { value, at: Date.now() };
+  return value;
+}
+
+// ── GPU memory usage ────────────────────────────────────
+
+const GPU_MEM_TTL_MS = 4000;
+
+let gpuMemoryCache: { value: { usedMB: number; totalMB: number } | null; at: number } | null = null;
+
+export async function getGpuMemoryUsage(): Promise<{ usedMB: number; totalMB: number } | null> {
+  if (gpuMemoryCache && Date.now() - gpuMemoryCache.at < GPU_MEM_TTL_MS) {
+    return gpuMemoryCache.value;
+  }
+  let value: { usedMB: number; totalMB: number } | null = null;
+  try {
+    const stdout = await execFileAsync(
+      "nvidia-smi",
+      ["--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
+      5000
+    );
+    const line = stdout.split("\n").map((entry) => entry.trim()).filter(Boolean)[0];
+    if (line) {
+      const [used, total] = line.split(",").map((part) => Number(part.trim()));
+      if (Number.isFinite(used) && Number.isFinite(total) && total > 0) {
+        value = { usedMB: Math.round(used), totalMB: Math.round(total) };
+      }
+    }
+  } catch {
+    value = null;
+  }
+  gpuMemoryCache = { value, at: Date.now() };
+  return value;
+}
+
+// ── Startup applications ────────────────────────────────
+
+const STARTUP_TTL_MS = 30_000;
+
+let startupCache: { value: StartupApp[]; at: number } | null = null;
+
+async function readStartupApps(): Promise<StartupApp[]> {
+  if (process.platform === "win32") {
+    try {
+      const script = [
+        "$ErrorActionPreference='SilentlyContinue'",
+        "Get-CimInstance Win32_StartupCommand | Select-Object Name,Command,Location,User | Sort-Object Name | ConvertTo-Json -Compress",
+      ].join("; ");
+      const stdout = await powershell(script, 12_000);
+      const rows = toArray<{ Name?: string; Command?: string; Location?: string; User?: string }>(
+        JSON.parse(stdout.trim() || "[]")
+      );
+      return rows
+        .filter((row) => row.Name)
+        .map((row) => ({
+          name: row.Name as string,
+          ...(row.Command ? { command: row.Command } : {}),
+          ...(row.Location ? { location: row.Location } : {}),
+          ...(row.User ? { user: row.User } : {}),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } catch {
+      return [];
+    }
+  }
+
+  if (process.platform === "linux") {
+    const directories = [`${process.env.HOME}/.config/autostart`, "/etc/xdg/autostart"];
+    const apps: StartupApp[] = [];
+    for (const directory of directories) {
+      const stdout = await execFileAsync("find", [directory, "-maxdepth", "1", "-name", "*.desktop"]).catch(() => "");
+      for (const file of stdout.trim().split("\n").filter(Boolean)) {
+        const contents = await execFileAsync("cat", [file]).catch(() => "");
+        if (!contents.trim()) continue;
+        const name = contents.match(/^Name=([^\n]+)/m)?.[1]?.trim();
+        if (!name) continue;
+        const command = contents.match(/^Exec=([^\n]+)/m)?.[1]?.trim();
+        apps.push({ name, ...(command ? { command } : {}), location: file });
+      }
+    }
+    return apps.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  return [];
+}
+
+export async function getStartupApps(): Promise<StartupApp[]> {
+  if (startupCache && Date.now() - startupCache.at < STARTUP_TTL_MS) {
+    return startupCache.value;
+  }
+  const value = await readStartupApps();
+  startupCache = { value, at: Date.now() };
+  return value;
 }

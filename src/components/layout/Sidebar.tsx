@@ -4,8 +4,10 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
+import { useBrand } from "@/context/BrandContext";
 import { useSystemMetrics } from "@/hooks/useSystemMetrics";
 import { cn } from "@/lib/utils";
+import { AVATARS, type AvatarKey } from "@/lib/accents";
 import {
   Home,
   MessageSquare,
@@ -19,47 +21,76 @@ import {
   ChevronRight,
   Cpu,
   Database,
-  Monitor
+  Monitor,
+  CalendarDays,
+  Workflow,
+  Bot,
+  Code2,
+  Palette,
+  FolderKanban,
+  Puzzle,
+  ShieldCheck,
+  History,
+  Radar,
+  Cpu as CpuIcon,
+  Network,
+  Orbit,
+  Hexagon,
 } from "lucide-react";
 import { StatusIndicator } from "../ui/StatusIndicator";
+
+const AVATAR_ICONS = { Cpu: CpuIcon, Network: Network, Orbit: Orbit, Hexagon: Hexagon } as const;
 
 const navItems = [
   { label: "Home", href: "/", icon: Home },
   { label: "Chat", href: "/chat", icon: MessageSquare },
   { label: "Voice", href: "/voice", icon: Mic },
+  { label: "Calendar", href: "/calendar", icon: CalendarDays },
+  { label: "Automations", href: "/automations", icon: Workflow },
   { label: "Tasks", href: "/tasks", icon: CheckSquare },
   { label: "Files", href: "/files", icon: FolderOpen },
   { label: "Apps", href: "/apps", icon: LayoutGrid },
+  { label: "Agents", href: "/agents", icon: Bot },
+  { label: "Projects", href: "/projects", icon: FolderKanban },
+  { label: "Developer", href: "/developer", icon: Code2 },
+  { label: "Creative", href: "/designer", icon: Palette },
+  { label: "Plugins", href: "/plugins", icon: Puzzle },
+  { label: "Activity", href: "/activity", icon: History },
+  { label: "Security", href: "/security", icon: ShieldCheck },
+  { label: "Offline", href: "/offline", icon: Radar },
   { label: "System", href: "/system", icon: Activity },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 export function Sidebar() {
   const { sidebarCollapsed, setSidebarCollapsed, aiState, isLocalAIConnected } = useApp();
+  const { brand, accent } = useBrand();
   const pathname = usePathname();
   const { metrics } = useSystemMetrics(5000); // Slow update for mini bars
+  const AvatarIcon = AVATAR_ICONS[AVATARS[brand.avatar as AvatarKey]?.icon ?? "Cpu"];
 
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out bg-navy-950/80 backdrop-blur-xl border-r border-cyan-400/10 flex flex-col",
+        "fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out bg-navy-950/80 backdrop-blur-xl border-r flex flex-col",
         sidebarCollapsed ? "w-[60px]" : "w-64"
       )}
+      style={{ borderColor: `${accent.hex}26` }}
     >
       {/* Header / Logo */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-cyan-400/10">
+      <div className="h-16 flex items-center justify-between px-4 border-b" style={{ borderColor: `${accent.hex}1a` }}>
         {!sidebarCollapsed && (
           <div className="flex items-center gap-3 animate-fade-in">
-            <div className="w-8 h-8 rounded bg-cyan-950 border border-cyan-400/30 flex items-center justify-center glow-cyan">
-              <span className="text-cyan-400 font-display font-bold text-lg leading-none">T</span>
+            <div className="w-8 h-8 rounded bg-navy-950 border flex items-center justify-center" style={{ borderColor: `${accent.hex}4d`, color: accent.hex, boxShadow: `0 0 14px ${accent.hex}44` }}>
+              <AvatarIcon size={16} />
             </div>
-            <span className="font-display font-bold tracking-widest text-slate-100 text-lg">TECHY</span>
+            <span className="font-display font-bold tracking-widest text-slate-100 text-lg">{brand.aiName}</span>
           </div>
         )}
-        
+
         {sidebarCollapsed && (
-          <div className="w-8 h-8 mx-auto rounded bg-cyan-950 border border-cyan-400/30 flex items-center justify-center glow-cyan mb-0">
-            <span className="text-cyan-400 font-display font-bold text-lg leading-none">T</span>
+          <div className="w-8 h-8 mx-auto rounded bg-navy-950 border flex items-center justify-center mb-0" style={{ borderColor: `${accent.hex}4d`, color: accent.hex, boxShadow: `0 0 14px ${accent.hex}44` }}>
+            <AvatarIcon size={16} />
           </div>
         )}
 

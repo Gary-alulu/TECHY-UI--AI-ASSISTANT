@@ -58,6 +58,7 @@ function applySnapshot(previous: SystemMetrics, snapshot: SystemSnapshot): Syste
       name: snapshot.gpu.name,
       vendor: snapshot.gpu.vendor,
       vramMB: snapshot.gpu.vramMB,
+      vramUsedMB: snapshot.gpu.vramUsedMB,
       history: pushHistory(previous.gpu.history, gpuPct),
     },
     storage: {
@@ -75,6 +76,7 @@ function applySnapshot(previous: SystemMetrics, snapshot: SystemSnapshot): Syste
     uptime: snapshot.uptime,
     machine: snapshot.machine,
     battery: snapshot.battery ?? undefined,
+    temperatures: snapshot.temperatures,
     source: "live",
   };
 }

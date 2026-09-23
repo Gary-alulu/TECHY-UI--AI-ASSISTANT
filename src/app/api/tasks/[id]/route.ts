@@ -6,6 +6,13 @@ export const dynamic = "force-dynamic";
 
 const ALLOWED_STATUS: TaskPatch["status"][] = ["todo", "in_progress", "completed", "cancelled"];
 const ALLOWED_PRIORITY: TaskPatch["priority"][] = ["low", "medium", "high", "urgent"];
+const ALLOWED_REPEAT: NonNullable<TaskPatch["repeat"]>[] = ["none", "daily", "weekly", "monthly"];
+
+function parseIso(value: unknown): Date | undefined {
+  if (typeof value !== "string" && !(value instanceof Date)) return undefined;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
 
 function buildPatch(value: unknown): TaskPatch | null {
   if (typeof value !== "object" || value === null) return null;
@@ -16,8 +23,23 @@ function buildPatch(value: unknown): TaskPatch | null {
     if (!title || title.length > 200) return null;
     patch.title = title;
   }
+  if ("description" in value) {
+    patch.description = typeof value.description === "string" ? value.description : "";
+  }
   if ("dueTime" in value) {
     patch.dueTime = typeof value.dueTime === "string" ? value.dueTime : "";
+  }
+  if ("remindAt" in value) {
+    const remindAt = value.remindAt == null ? null : parseIso(value.remindAt);
+    patch.remindAt = (remindAt ?? null) as TaskPatch["remindAt"];
+  }
+  if ("repeat" in value) {
+    const repeat = value.repeat;
+    if (typeof repeat !== "string" || !ALLOWED_REPEAT.includes(repeat as NonNullable<TaskPatch["repeat"]>)) return null;
+    patch.repeat = repeat as TaskPatch["repeat"];
+  }
+  if ("tags" in value) {
+    patch.tags = Array.isArray(value.tags) ? value.tags.filter((tag): tag is string => typeof tag === "string") : [];
   }
   if ("priority" in value) {
     const priority = value.priority;

@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import type { InstalledApp } from "@/types";
+import { classifyApp } from "./appCategories";
 
 const CACHE_TTL_MS = 120_000;
 
@@ -78,7 +79,7 @@ function mapRows(rows: Array<Record<string, unknown>>): InstalledApp[] {
     const sizeMB = sizeKB ? Math.max(1, Math.round(sizeKB / 1024)) : undefined;
     const installDate = formatInstallDate(typeof row.InstallDate === "string" ? row.InstallDate : undefined);
 
-    apps.set(key, {
+    const app: InstalledApp = {
       id: makeId(name, version, publisher),
       name,
       ...(version ? { version } : {}),
@@ -87,7 +88,8 @@ function mapRows(rows: Array<Record<string, unknown>>): InstalledApp[] {
       ...(installDate ? { installDate } : {}),
       ...(installLocation ? { installLocation } : {}),
       ...(exePath ? { exePath } : {}),
-    });
+    };
+    apps.set(key, { ...app, category: classifyApp(app) });
   }
   return Array.from(apps.values()).sort((a, b) => a.name.localeCompare(b.name));
 }

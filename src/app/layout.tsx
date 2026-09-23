@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AppProvider } from "@/context/AppContext";
+import { BrandProvider } from "@/context/BrandContext";
 import { AppShell } from "@/components/layout/AppShell";
 
 export const metadata: Metadata = {
@@ -20,7 +21,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <AppProvider>
-          <AppShell>{children}</AppShell>
+          <BrandProvider>
+            <AppShell>{children}</AppShell>
+          </BrandProvider>
         </AppProvider>
       </body>
     </html>

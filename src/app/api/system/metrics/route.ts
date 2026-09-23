@@ -6,6 +6,8 @@ import {
   getCpuUsage,
   getNetworkInfo,
   getGpuUtilization,
+  getTemperatureInfo,
+  getGpuMemoryUsage,
 } from "@/lib/system/hardware";
 import type { SystemSnapshot } from "@/types";
 
@@ -15,11 +17,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const [hardware, cpuPercentage, network, storage] = await Promise.all([
+  const [hardware, cpuPercentage, network, storage, temperatures, gpuMemory] = await Promise.all([
     getHardwareInfo(),
     getCpuUsage(),
     getNetworkInfo(),
     getStorageInfo().catch(() => ({ percentage: 0, usedGB: 0, totalGB: 0, mount: "" })),
+    getTemperatureInfo(),
+    getGpuMemoryUsage(),
   ]);
 
   const ram = getRamInfo();
@@ -42,7 +46,9 @@ export async function GET(request: Request) {
     gpu: {
       ...hardware.gpu,
       percentage: gpuPercentage,
+      ...(gpuMemory ? { vramUsedMB: gpuMemory.usedMB } : {}),
     },
+    temperatures,
     network: network.totals,
     interfaces: network.interfaces,
     machine: hardware.machine,

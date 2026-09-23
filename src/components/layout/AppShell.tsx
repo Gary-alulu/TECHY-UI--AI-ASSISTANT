@@ -5,6 +5,7 @@ import { useApp } from "@/context/AppContext";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
+import { CommandMode } from "../command/CommandMode";
 import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -42,6 +43,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+
+      {/* Global Command Mode */}
+      <CommandMode />
     </div>
   );
 }

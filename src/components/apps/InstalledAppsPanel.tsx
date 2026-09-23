@@ -2,9 +2,10 @@
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { GlassPanel } from "../ui/GlassPanel";
-import { Search, RefreshCw, Rocket, Check, AlertTriangle, Package } from "lucide-react";
+import { Search, RefreshCw, Rocket, Check, AlertTriangle, Package, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { InstalledApp } from "@/types";
+import { APP_CATEGORIES } from "@/lib/system/appCategories";
+import type { AppCategory, InstalledApp } from "@/types";
 
 type LaunchStatus = "idle" | "launching" | "launched" | "error";
 
@@ -28,6 +29,7 @@ export function InstalledAppsPanel() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<AppCategory | "all">("all");
   const [statuses, setStatuses] = useState<Record<string, LaunchStatus>>({});
   const [launchError, setLaunchError] = useState<string | null>(null);
   const resetTimers = useRef<Map<string, number>>(new Map());
@@ -67,11 +69,21 @@ export function InstalledAppsPanel() {
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return apps;
-    return apps.filter(
-      (app) => app.name.toLowerCase().includes(needle) || app.publisher?.toLowerCase().includes(needle)
-    );
-  }, [apps, query]);
+    return apps.filter((app) => {
+      if (category !== "all" && app.category !== category) return false;
+      if (!needle) return true;
+      return app.name.toLowerCase().includes(needle) || app.publisher?.toLowerCase().includes(needle);
+    });
+  }, [apps, query, category]);
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<AppCategory, number>();
+    for (const app of apps) {
+      const key = app.category ?? "other";
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [apps]);
 
   const setStatus = (id: string, status: LaunchStatus) =>
     setStatuses((previous) => ({ ...previous, [id]: status }));
@@ -145,6 +157,52 @@ export function InstalledAppsPanel() {
           </span>
         </div>
 
+        {/* Category filter */}
+        <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+          <button
+            type="button"
+            onClick={() => setCategory("all")}
+            className={cn(
+              "px-2 py-1 rounded-md text-[9px] font-mono uppercase tracking-wider border transition-colors",
+              category === "all"
+                ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300"
+                : "border-slate-800/50 bg-navy-950/40 text-slate-500 hover:text-slate-300 hover:border-slate-700/60"
+            )}
+          >
+            All {apps.length}
+          </button>
+          {APP_CATEGORIES.map((item) => {
+            const count = categoryCounts.get(item.id) ?? 0;
+            const active = category === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setCategory(active ? "all" : item.id)}
+                title={`${count} installed`}
+                className={cn(
+                  "px-2 py-1 rounded-md text-[9px] font-mono uppercase tracking-wider border transition-colors",
+                  active
+                    ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300"
+                    : "border-slate-800/50 bg-navy-950/40 text-slate-500 hover:text-slate-300 hover:border-slate-700/60"
+                )}
+              >
+                {item.label}{count > 0 ? ` ${count}` : ""}
+              </button>
+            );
+          })}
+          {category !== "all" && (
+            <button
+              type="button"
+              onClick={() => setCategory("all")}
+              className="px-1.5 py-1 rounded-md text-[9px] font-mono text-slate-500 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
+              title="Clear category filter"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
+
         {launchError && (
           <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-[10px] font-mono text-rose-400 shrink-0">
             <AlertTriangle size={12} className="shrink-0" />
@@ -192,7 +250,10 @@ export function InstalledAppsPanel() {
                       <div className="text-xs font-medium text-slate-200 truncate" title={app.name}>
                         {app.name}
                       </div>
-                      <div className="text-[10px] text-slate-500 truncate">
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500 truncate">
+                        <span className="text-[9px] font-mono uppercase tracking-widest text-cyan-500/60 border border-cyan-500/20 rounded px-1 py-px bg-navy-950/40">
+                          {app.category ?? "other"}
+                        </span>
                         {app.publisher || "Unknown publisher"}
                       </div>
                       <div className="flex items-center gap-1.5 text-[9px] font-mono text-slate-600 mt-0.5">

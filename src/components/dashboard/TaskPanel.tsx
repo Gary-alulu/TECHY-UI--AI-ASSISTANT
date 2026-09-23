@@ -5,15 +5,17 @@ import { GlassPanel } from "../ui/GlassPanel";
 import { HUDButton } from "../ui/HUDButton";
 import {
   AlertTriangle,
+  Bell,
   CheckCircle2,
   Circle,
   Clock,
   Loader2,
   Plus,
+  Repeat,
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Task } from "@/types";
+import type { Task, TaskRepeat } from "@/types";
 
 const PRIORITY_DOT: Record<Task["priority"], string> = {
   urgent: "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.7)]",
@@ -21,6 +23,17 @@ const PRIORITY_DOT: Record<Task["priority"], string> = {
   medium: "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]",
   low: "bg-slate-500",
 };
+
+function formatRemindAt(value: Date): string {
+  const now = new Date();
+  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  const time = value.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (sameDay(value, now)) return `today ${time}`;
+  const tomorrow = new Date();
+  tomorrow.setDate(now.getDate() + 1);
+  if (sameDay(value, tomorrow)) return `tomorrow ${time}`;
+  return `${value.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} ${time}`;
+}
 
 export function TaskPanel() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -30,7 +43,9 @@ export function TaskPanel() {
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [titleInput, setTitleInput] = useState("");
-  const [timeInput, setTimeInput] = useState("");
+  const [descriptionInput, setDescriptionInput] = useState("");
+  const [remindInput, setRemindInput] = useState("");
+  const [repeatInput, setRepeatInput] = useState<TaskRepeat>("none");
   const [priorityInput, setPriorityInput] = useState<Task["priority"]>("medium");
 
   const load = useCallback(async () => {
@@ -68,7 +83,9 @@ export function TaskPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
-          dueTime: timeInput.trim() || undefined,
+          description: descriptionInput.trim() || undefined,
+          remindAt: remindInput ? new Date(remindInput).toISOString() : undefined,
+          repeat: repeatInput === "none" ? undefined : repeatInput,
           priority: priorityInput,
         }),
         cache: "no-store",
@@ -77,7 +94,9 @@ export function TaskPanel() {
       const data = (await response.json()) as { task: Task };
       setTasks((previous) => [...previous, data.task]);
       setTitleInput("");
-      setTimeInput("");
+      setDescriptionInput("");
+      setRemindInput("");
+      setRepeatInput("none");
       setPriorityInput("medium");
       setError(null);
     } catch (err) {
@@ -169,7 +188,7 @@ export function TaskPanel() {
       {formOpen && (
         <form
           onSubmit={submitTask}
-          className="mb-3 grid grid-cols-[1fr_auto] gap-2 p-2.5 rounded-lg border border-cyan-400/20 bg-cyan-950/10"
+          className="mb-3 flex flex-col gap-2 p-2.5 rounded-lg border border-cyan-400/20 bg-cyan-950/10"
         >
           <input
             value={titleInput}
@@ -178,18 +197,36 @@ export function TaskPanel() {
             maxLength={200}
             className="w-full min-w-0 bg-navy-950/50 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-400/40"
           />
-          <div className="flex items-center gap-2">
+          <input
+            value={descriptionInput}
+            onChange={(event) => setDescriptionInput(event.target.value)}
+            placeholder="Description (optional)"
+            maxLength={400}
+            className="w-full min-w-0 bg-navy-950/50 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-400/40"
+          />
+          <div className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1fr_auto] gap-2">
             <input
-              value={timeInput}
-              onChange={(event) => setTimeInput(event.target.value)}
-              placeholder="Time"
-              maxLength={32}
-              className="w-24 bg-navy-950/50 border border-slate-800 rounded-lg px-2 py-1.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-400/40"
+              type="datetime-local"
+              value={remindInput}
+              onChange={(event) => setRemindInput(event.target.value)}
+              title="Remind me at this time"
+              className="bg-navy-950/50 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-400/40 color-scheme-dark"
             />
+            <select
+              value={repeatInput}
+              onChange={(event) => setRepeatInput(event.target.value as TaskRepeat)}
+              title="Repeat"
+              className="bg-navy-950/50 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400/40"
+            >
+              <option value="none">Once</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
             <select
               value={priorityInput}
               onChange={(event) => setPriorityInput(event.target.value as Task["priority"])}
-              className="bg-navy-950/50 border border-slate-800 rounded-lg px-2 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-cyan-400/40"
+              className="bg-navy-950/50 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400/40"
             >
               <option value="low">Low</option>
               <option value="medium">Med</option>
@@ -262,12 +299,33 @@ export function TaskPanel() {
               >
                 {task.title}
               </p>
-              {task.dueTime && (
+              {task.description && (
+                <p
+                  className={cn(
+                    "text-xs mt-0.5 line-clamp-2 leading-snug",
+                    task.status === "completed" ? "text-slate-600" : "text-slate-500"
+                  )}
+                >
+                  {task.description}
+                </p>
+              )}
+              {task.remindAt ? (
+                <div className="flex items-center gap-1 mt-1 text-xs text-cyan-400/80 font-mono">
+                  <Bell size={10} />
+                  <span>{formatRemindAt(task.remindAt)}</span>
+                  {task.repeat && task.repeat !== "none" && (
+                    <span className="flex items-center gap-0.5 text-[9px] uppercase tracking-wider text-cyan-500/60">
+                      <Repeat size={9} />
+                      {task.repeat}
+                    </span>
+                  )}
+                </div>
+              ) : task.dueTime ? (
                 <div className="flex items-center gap-1 mt-1 text-xs text-slate-500 font-mono">
                   <Clock size={10} />
                   <span>{task.dueTime}</span>
                 </div>
-              )}
+              ) : null}
             </div>
 
             {task.status !== "completed" && (

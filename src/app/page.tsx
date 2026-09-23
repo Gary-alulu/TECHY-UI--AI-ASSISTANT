@@ -7,6 +7,7 @@ import { TaskPanel } from "@/components/dashboard/TaskPanel";
 import { QuickAppsPanel } from "@/components/dashboard/QuickAppsPanel";
 import { AIModelPanel } from "@/components/dashboard/AIModelPanel";
 import { RecentActivityPanel } from "@/components/dashboard/RecentActivityPanel";
+import { BriefingPanel } from "@/components/dashboard/BriefingPanel";
 
 export default function Dashboard() {
   return (
@@ -25,6 +26,8 @@ export default function Dashboard() {
 
       {/* Right Column: Dashboard Panels */}
       <div className="w-full xl:w-[450px] 2xl:w-[500px] shrink-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 auto-rows-min content-start gap-6 overflow-y-auto pr-2 pb-8 h-[calc(100vh-8rem)]">
+
+        <BriefingPanel />
 
         <SystemMonitorPanel />
 

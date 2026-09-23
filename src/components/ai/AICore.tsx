@@ -2,12 +2,14 @@
 
 import React, { useEffect, useRef } from "react";
 import { useApp } from "@/context/AppContext";
+import { useBrand } from "@/context/BrandContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Cpu, Mic, Volume2, AlertTriangle, Play } from "lucide-react";
 
 export function AICore() {
   const { aiState } = useApp();
+  const { brand, accent } = useBrand();
   const { state } = aiState;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -198,9 +200,10 @@ export function AICore() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
                 transition={{ duration: 0.3 }}
-                className="w-10 h-10 rounded bg-cyan-950 border border-cyan-400/30 flex items-center justify-center glow-cyan"
+                className="w-10 h-10 rounded bg-navy-950 border flex items-center justify-center"
+                style={{ borderColor: `${accent.hex}4d`, color: accent.hex, boxShadow: `0 0 22px ${accent.hex}55` }}
               >
-                <span className="text-cyan-400 font-display font-bold text-2xl leading-none">T</span>
+                <span className="font-display font-bold text-2xl leading-none">{brand.aiName.charAt(0).toUpperCase()}</span>
               </motion.div>
             )}
             

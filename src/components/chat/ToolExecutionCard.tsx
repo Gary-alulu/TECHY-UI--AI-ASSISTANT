@@ -12,6 +12,7 @@ interface ToolExecutionCardProps {
 export function ToolExecutionCard({ execution }: ToolExecutionCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { status, toolName, output, error } = execution;
+  const detail = execution.detail;
 
   const getStatusColor = () => {
     switch (status) {
@@ -50,12 +51,12 @@ export function ToolExecutionCard({ execution }: ToolExecutionCardProps) {
         </button>
       </div>
 
-      {expanded && (output || error) && (
+      {expanded && (output || detail || error) && (
         <div className="p-3 bg-[#0a0a0a] text-slate-300 border-t border-slate-800/60 overflow-x-auto">
           {error ? (
             <div className="text-red-400 whitespace-pre-wrap">{error}</div>
           ) : (
-            <div className="whitespace-pre-wrap text-cyan-300/80">{output}</div>
+            <div className="whitespace-pre-wrap text-cyan-300/80">{output || detail}</div>
           )}
         </div>
       )}

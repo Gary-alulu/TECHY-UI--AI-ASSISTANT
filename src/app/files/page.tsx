@@ -1,8 +1,9 @@
 import { FilesPanel } from "@/components/files/FilesPanel";
+import { KnowledgeSearchPanel } from "@/components/files/KnowledgeSearchPanel";
 
 export default function FilesPage() {
   return (
-    <div className="h-[calc(100vh-8rem)] animate-fade-in p-6 max-w-6xl mx-auto flex flex-col">
+    <div className="h-[calc(100vh-8rem)] animate-fade-in p-6 max-w-7xl mx-auto flex flex-col">
       <div className="mb-6">
         <h2 className="text-2xl font-display font-medium text-slate-100 tracking-wide">
           File Command Center
@@ -13,8 +14,13 @@ export default function FilesPage() {
         </p>
       </div>
 
-      <div className="flex-1 min-h-0">
-        <FilesPanel />
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="lg:col-span-3 min-h-0">
+          <FilesPanel />
+        </div>
+        <div className="lg:col-span-2 min-h-0">
+          <KnowledgeSearchPanel />
+        </div>
       </div>
     </div>
   );

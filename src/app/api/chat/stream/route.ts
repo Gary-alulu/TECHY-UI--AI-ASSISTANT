@@ -1,4 +1,7 @@
-import { executeTool, ollamaTools } from "@/lib/ai/tools";
+import { executeTool, ollamaTools, ACTIVITY_KIND } from "@/lib/ai/tools";
+import { runSkillIfMatched, type SkillMatch } from "@/lib/ai/skills";
+import { agentForTool } from "@/lib/agents";
+import { memoryContext } from "@/lib/memory";
 import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
@@ -28,7 +31,20 @@ async function pickModel(): Promise<string | null> {
     if (!response.ok) return null;
     const data = (await response.json()) as { models?: Array<{ name?: string }> };
     const models = (data.models ?? []).filter((model) => typeof model.name === "string" && model.name.length > 0);
-    return models.length > 0 ? models[0].name! : null;
+    if (models.length === 0) return null;
+    const { getBranding } = await import("@/lib/branding");
+    let preferred: string;
+    try {
+      const branding = await getBranding();
+      preferred = branding.model?.trim().toLowerCase() ?? "auto";
+    } catch {
+      preferred = "auto";
+    }
+    if (preferred && preferred !== "auto") {
+      const match = models.find((model) => (model.name as string).toLowerCase() === preferred || (model.name as string).toLowerCase().startsWith(`${preferred}:`));
+      if (match) return match.name as string;
+    }
+    return models[0].name!;
   } catch {
     return null;
   }
@@ -113,7 +129,8 @@ async function runConversation(
 ): Promise<void> {
   emit(context, { type: "meta", available: true, model });
 
-  const messages: ChatLine[] = [{ role: "system", content: SYSTEM_PROMPT }, ...sourceMessages];
+  const remembered = await memoryContext();
+  const messages: ChatLine[] = [{ role: "system", content: SYSTEM_PROMPT + remembered }, ...sourceMessages];
   const executions: Array<Record<string, unknown>> = [];
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -212,10 +229,50 @@ export async function POST(request: Request) {
     start(controller) {
       const context: StreamContext = { controller };
       void (async () => {
-        const model = await pickModel();
+        const lastUser = sourceMessages.filter((message) => message.role === "user").pop();
+        let skill: SkillMatch | null = null;
+        if (lastUser) {
+          try {
+            skill = await runSkillIfMatched(lastUser.content);
+          } catch {
+            skill = null;
+          }
+          if (skill) {
+            emit(context, { type: "meta", available: false, skill: skill.tool, agent: skill.agent ?? agentForTool(skill.tool).name });
+            const hash = randomUUID();
+            try {
+              const { logActivity } = await import("@/lib/activity");
+              await logActivity({ actor: "techy", kind: ACTIVITY_KIND[skill.tool] ?? "chat", action: `Skill: ${skill.tool}`, detail: skill.detail || skill.answer.slice(0, 120) });
+            } catch {
+              // activity is best-effort
+            }
+            const execution = {
+              id: hash,
+              toolName: skill.tool,
+              status: "completed" as const,
+              detail: skill.detail,
+              duration: 0,
+              completedAt: new Date().toISOString(),
+            };
+            emit(context, { type: "tool", execution });
+            emit(context, { type: "delta", content: skill.answer });
+            emit(context, { type: "done", executions: [execution] });
+            controller.close();
+            return;
+          }
+        }
+        const { getSecurityPolicy } = await import("@/lib/security");
+        const policy = await getSecurityPolicy();
+        const model = policy.localOnly ? null : await pickModel();
         if (!model) {
-          emit(context, { type: "meta", available: false });
-          emit(context, { type: "done", executions: [] });
+          emit(context, { type: "meta", available: false, localOnly: policy.localOnly });
+          emit(context, {
+            type: "done",
+            executions: [],
+            message: policy.localOnly
+              ? "Local-only mode is enabled in SECURITY. TECHY is running fully offline — no model access. Offline skills keep working for system, files, apps, tasks, memory, calendar, automation and the knowledge base."
+              : "No local model detected. Ollama isn't running — TECHY's offline skills are available for system, files, apps, tasks, memory and the knowledge base.",
+          });
           controller.close();
           return;
         }
