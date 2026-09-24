@@ -29,6 +29,10 @@ import {
   ArrowDown,
   Zap,
   Command,
+  ClipboardList,
+  Monitor,
+  FileSearch,
+  Target,
 } from "lucide-react";
 
 type Category = "all" | "files" | "apps" | "system" | "web" | "ai";
@@ -45,6 +49,10 @@ const NAV_ENTRIES: CommandEntry[] = [
   { label: "Home", href: "/", description: "Return to the dashboard", category: "system", icon: <Home size={15} /> },
   { label: "Chat", href: "/chat", description: "Talk to TECHY directly", category: "ai", icon: <MessageSquare size={15} /> },
   { label: "Voice", href: "/voice", description: "Voice-mode conversation", category: "ai", icon: <Mic size={15} /> },
+  { label: "Clipboard", href: "/clipboard", description: "Inspect and act on your clipboard", category: "system", icon: <ClipboardList size={15} /> },
+  { label: "Screen", href: "/screen", description: "Screen awareness — active window and capture", category: "system", icon: <Monitor size={15} /> },
+  { label: "Research", href: "/research", description: "Research Mode — question to cited report", category: "ai", icon: <FileSearch size={15} /> },
+  { label: "Planner", href: "/planner", description: "Autonomous task mode — plan, approve, run", category: "ai", icon: <Target size={15} /> },
   { label: "Calendar", href: "/calendar", description: "Events, meetings and agenda", category: "files", icon: <CalendarDays size={15} /> },
   { label: "Automations", href: "/automations", description: "Run and manage workflows", category: "files", icon: <Workflow size={15} /> },
   { label: "Tasks", href: "/tasks", description: "To-dos and reminders", category: "files", icon: <CheckSquare size={15} /> },
@@ -67,6 +75,7 @@ const QUICK_ACTIONS: CommandEntry[] = [
   { label: "Find a file in my workspace", href: "/files", description: "Search by name or content", category: "files", icon: <Search size={15} /> },
   { label: "Check system resources", href: "/system", description: "CPU, RAM and processes", category: "system", icon: <Activity size={15} /> },
   { label: "Launch an app", href: "/apps", description: "Browse installed applications", category: "apps", icon: <LayoutGrid size={15} /> },
+  { label: "Prepare for tomorrow's meeting", href: "/planner?goal=" + encodeURIComponent("Prepare everything for tomorrow's client meeting"), description: "Draft, approve and run a prep plan", category: "ai", icon: <Target size={15} /> },
 ];
 
 const CATEGORIES: Array<{ key: Category; label: string }> = [

@@ -594,3 +594,286 @@ export interface ProjectSummary {
   tasks: number;
   lastActivity: string | null;
 }
+
+// ── Meeting Assistant ──────────────────────────────────
+export type MeetingStatus = "planned" | "active" | "completed";
+
+export interface MeetingActionItem {
+  id: string;
+  text: string;
+  done: boolean;
+  owner?: string;
+}
+
+export interface Meeting {
+  id: string;
+  title: string;
+  date: string;
+  status: MeetingStatus;
+  durationSeconds?: number;
+  agreementDay?: string;
+  location?: string;
+  participants?: string[];
+  agenda: string[];
+  notes: string;
+  actionItems: MeetingActionItem[];
+  keyDecisions: string[];
+  summary: string;
+  followUp: MeetingActionItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MeetingPatch = Partial<
+  Pick<Meeting, "title" | "date" | "status" | "location" | "participants" | "agenda" | "notes" | "actionItems" | "keyDecisions" | "summary" | "followUp" | "durationSeconds">
+>;
+
+// ── Command History & Templates ────────────────────────
+export interface CommandHistoryEntry {
+  id: string;
+  text: string;
+  /** Where the command originated: manual, chat, palette. */
+  source: string;
+  createdAt: string;
+}
+
+export interface CommandTemplate {
+  id: string;
+  text: string;
+  label: string;
+  description?: string;
+  category: "general" | "files" | "system" | "apps" | "productivity" | "research";
+}
+
+// ── Smart Workspace Manager ────────────────────────────
+export type SlotPosition = "left" | "right" | "secondary" | "bottom" | "overlay";
+
+export interface WorkspaceSlot {
+  id: string;
+  appId?: string;
+  appName?: string;
+  position: SlotPosition;
+  display: string;
+}
+
+export interface WorkspaceLayout {
+  id: string;
+  name: string;
+  description?: string;
+  slots: WorkspaceSlot[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DisplayInfo {
+  id: string;
+  name: string;
+  label?: string;
+  primary: boolean;
+  resolution?: string;
+  bounds?: { x: number; y: number; width: number; height: number };
+  online: boolean;
+}
+
+// ── Network Intelligence ───────────────────────────────
+export type AdapterKind = "wifi" | "ethernet" | "bluetooth" | "virtual" | "other";
+
+export interface AdapterStatus {
+  name: string;
+  kind: AdapterKind;
+  connected: boolean;
+  linkSpeedMbps?: number;
+  mac?: string;
+}
+
+export interface NetworkNeighbor {
+  ip: string;
+  mac?: string;
+  state: string;
+  interfaceName?: string;
+}
+
+export interface NetworkIntelligence {
+  totals: NetworkMetric;
+  interfaces: NetworkInterfaceInfo[];
+  adapters: AdapterStatus[];
+  neighbors: NetworkNeighbor[];
+  latencyMs: number | null;
+  probeTarget: string;
+  measuredAt: string;
+}
+
+// ── Hardware Dashboard / Devices ───────────────────────
+export interface MotherboardInfo {
+  manufacturer?: string;
+  product?: string;
+  serial?: string;
+  biosVendor?: string;
+  biosVersion?: string;
+}
+
+export interface FanInfo {
+  name: string;
+  rpm?: number;
+}
+
+export interface UsbDeviceInfo {
+  name: string;
+  manufacturer?: string;
+  status: string;
+}
+
+export interface BluetoothDeviceInfo {
+  name: string;
+  connected: boolean;
+  type?: string;
+}
+
+export type TrackedDeviceId = "keyboard" | "mouse" | "headphones" | "webcam" | "microphone" | "phone" | "externalSSD" | "usbStorage";
+
+export interface TrackedDevice {
+  id: TrackedDeviceId;
+  label: string;
+  connected: boolean;
+  detail?: string;
+}
+
+export interface HardwareDashboard {
+  cpu: CpuInfo;
+  gpu: GpuInfo;
+  ram: { percentage: number; usedGB: number; totalGB: number };
+  storage: { percentage: number; usedGB: number; totalGB: number; mount: string };
+  temperatures: TemperatureInfo | null;
+  motherboard: MotherboardInfo;
+  fans: FanInfo[];
+  battery: BatteryMetric | null;
+  displays: DisplayInfo[];
+  usbDevices: UsbDeviceInfo[];
+  bluetoothDevices: BluetoothDeviceInfo[];
+  machine: MachineInfo | null;
+  detectedAt: string;
+}
+
+// ── Smart Troubleshooting ──────────────────────────────
+export type DiagnosticStatus = "normal" | "high" | "warning" | "unknown";
+
+export interface DiagnosticCheck {
+  key: string;
+  label: string;
+  status: DiagnosticStatus;
+  value: string;
+  detail: string;
+}
+
+export interface DiagnosticResult {
+  checks: DiagnosticCheck[];
+  likelyCause: string;
+  processHints: Array<{ name: string; memoryMB: number; cpuPercent?: number }>;
+  ranAt: string;
+}
+
+// ── Self-Diagnostics / Health ──────────────────────────
+export type HealthCheckStatus = "ok" | "warn" | "fail";
+
+export interface HealthCheck {
+  key: string;
+  label: string;
+  status: HealthCheckStatus;
+  detail: string;
+  points: number;
+  maxPoints: number;
+}
+
+export interface SystemHealth {
+  score: number;
+  maxScore: number;
+  checks: HealthCheck[];
+  assessedAt: string;
+}
+
+// ── Local AI Model Lab ─────────────────────────────────
+export type ModelIntent = "chat" | "code" | "vision" | "embedding";
+
+export interface LocalModelEntry {
+  name: string;
+  sizeGB?: number;
+  loaded: boolean;
+  intent: ModelIntent;
+}
+
+export interface RouterRule {
+  id: string;
+  intent: ModelIntent;
+  model: string;
+  enabled: boolean;
+}
+
+export interface ModelLabState {
+  models: LocalModelEntry[];
+  router: RouterRule[];
+  loadedModelNames: string[];
+  settings: {
+    numCtx: number;
+    keepAliveMinutes: number;
+  };
+  updatedAt: string;
+}
+
+// ── AI Performance ─────────────────────────────────────
+export interface PerformanceSample {
+  id: string;
+  model: string;
+  tokensPerSec: number | null;
+  latencyMs: number;
+  gpuUtilization: number | null;
+  contextSize: number;
+  inferenceTimeMs: number;
+  totalTokens: number;
+  createdAt: string;
+}
+
+export interface PerformanceOverview {
+  samples: PerformanceSample[];
+  gpuVram: { usedMB: number; totalMB: number } | null;
+  gpuUtilization: number | null;
+  metrics: {
+    tokensPerSec?: number;
+    latencyMs?: number;
+    contextSize?: number;
+    inferenceTimeMs?: number;
+    totalTokens?: number;
+  };
+}
+
+// ── Emergency / Safe Mode ──────────────────────────────
+export type SafeModeCapability = "chat" | "fileRead" | "systemMonitor" | "fileModify" | "appControl" | "terminal" | "automation";
+
+export interface SafeModeState {
+  active: boolean;
+  enabledAt: string | null;
+  capabilities: Record<SafeModeCapability, boolean>;
+}
+
+// ── Media Center ────────────────────────────────────────
+export type MediaKind = "music" | "video" | "podcast" | "audio";
+
+export interface MediaEntry {
+  id: string;
+  name: string;
+  path: string;
+  kind: MediaKind;
+  sizeBytes: number;
+  modifiedAt?: string;
+}
+
+// ── Audio Intelligence ─────────────────────────────────
+export interface AudioTranscriptEntry {
+  id: string;
+  name: string;
+  source: string;
+  transcript: string;
+  speakers: number;
+  summary: string;
+  actionItems: string[];
+  processedAt: string;
+}

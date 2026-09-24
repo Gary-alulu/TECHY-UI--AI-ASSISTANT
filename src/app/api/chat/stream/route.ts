@@ -1,7 +1,8 @@
-import { executeTool, ollamaTools, ACTIVITY_KIND } from "@/lib/ai/tools";
+import { executeTool, isToolBlocked, ollamaTools, ACTIVITY_KIND } from "@/lib/ai/tools";
 import { runSkillIfMatched, type SkillMatch } from "@/lib/ai/skills";
 import { agentForTool } from "@/lib/agents";
 import { memoryContext } from "@/lib/memory";
+import { addCommandHistory } from "@/lib/commands";
 import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
@@ -97,6 +98,7 @@ async function streamRound(
       }
       const delta = data.message?.content;
       if (delta) {
+        if (context.firstAt == null) context.firstAt = Date.now();
         text += delta;
         emit(context, { type: "delta", content: delta });
       }
@@ -111,6 +113,8 @@ async function streamRound(
 
 interface StreamContext {
   controller: ReadableStreamDefaultController<Uint8Array>;
+  /** Set on the first text delta so the route can report realistic latency. */
+  firstAt?: number;
 }
 
 function emit(context: StreamContext, event: Record<string, unknown>): void {
@@ -126,15 +130,17 @@ async function runConversation(
   model: string,
   sourceMessages: ChatLine[],
   signal: AbortSignal
-): Promise<void> {
+): Promise<number> {
   emit(context, { type: "meta", available: true, model });
 
   const remembered = await memoryContext();
   const messages: ChatLine[] = [{ role: "system", content: SYSTEM_PROMPT + remembered }, ...sourceMessages];
   const executions: Array<Record<string, unknown>> = [];
+  let totalChars = 0;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const { text, toolCalls } = await streamRound(context, model, messages, signal);
+    if (text) totalChars += text.length;
 
     if (toolCalls.length > 0) {
       if (text) messages.push({ role: "assistant", content: text, tool_calls: toolCalls });
@@ -178,10 +184,11 @@ async function runConversation(
       break;
     }
     emit(context, { type: "done", executions });
-    return;
+    return totalChars;
   }
 
   emit(context, { type: "done", executions });
+  return totalChars;
 }
 
 export async function POST(request: Request) {
@@ -229,6 +236,29 @@ export async function POST(request: Request) {
     start(controller) {
       const context: StreamContext = { controller };
       void (async () => {
+        // Best-effort: record every user command for the Command History feature.
+        const lastCommand = sourceMessages.filter((message) => message.role === "user").pop();
+        if (lastCommand) {
+          try {
+            await addCommandHistory(lastCommand.content, "user");
+          } catch {
+            // history is best-effort
+          }
+        }
+
+        // SAFE MODE: block chat entirely when the chat capability is off.
+        const { safeModeBlocks } = await import("@/lib/safemode");
+        if (await safeModeBlocks("chat")) {
+          emit(context, { type: "meta", available: false });
+          emit(context, {
+            type: "done",
+            executions: [],
+            message: "SAFE MODE is blocking AI chat right now. Enable the Chat capability under Safe Mode (or say “disable safe mode”) and ask again.",
+          });
+          controller.close();
+          return;
+        }
+
         const lastUser = sourceMessages.filter((message) => message.role === "user").pop();
         let skill: SkillMatch | null = null;
         if (lastUser) {
@@ -237,6 +267,7 @@ export async function POST(request: Request) {
           } catch {
             skill = null;
           }
+          if (skill && (await isToolBlocked(skill.tool))) skill = null;
           if (skill) {
             emit(context, { type: "meta", available: false, skill: skill.tool, agent: skill.agent ?? agentForTool(skill.tool).name });
             const hash = randomUUID();
@@ -277,7 +308,26 @@ export async function POST(request: Request) {
           return;
         }
         try {
-          await runConversation(context, model, sourceMessages, request.signal);
+          const startedAt = Date.now();
+          const totalChars = await runConversation(context, model, sourceMessages, request.signal);
+          const elapsed = Date.now() - startedAt;
+          if (totalChars > 0) {
+            try {
+              const { recordPerformance } = await import("@/lib/models");
+              const totalTokens = Math.max(1, Math.round(totalChars / 4));
+              const seconds = Math.max(0.1, elapsed / 1000);
+              await recordPerformance({
+                model,
+                latencyMs: context.firstAt != null ? context.firstAt - startedAt : elapsed,
+                inferenceTimeMs: elapsed,
+                contextSize: 8192,
+                totalTokens,
+                tokensPerSec: Math.round((totalTokens / seconds) * 10) / 10,
+              });
+            } catch {
+              // performance tracking is best-effort
+            }
+          }
         } catch (error) {
           emit(context, { type: "error", message: error instanceof Error ? error.message : "Stream failed" });
         } finally {

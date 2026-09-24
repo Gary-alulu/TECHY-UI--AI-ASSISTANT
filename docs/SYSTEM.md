@@ -16,10 +16,34 @@ Deep-dive technical reference for **TECHY — Local AI Assistant**, a Next.js 16
   - `Sidebar` — fixed rail (expanded `ml-64`, collapsed `ml-[60px]`), avatar/name from branding, live system status dot.
   - `TopBar` — sticky `h-16` blur bar: local/online state, **RUNNING LOCALLY · OFFLINE-FIRST** badge, command-mode trigger (`Ctrl Space`), global mic, `NotificationBell`, HUD clock/date.
   - `CommandMode` — global overlay (Ctrl+Space / Ctrl+K).
+  - `DropZone` — global Drag-and-Drop AI overlay (captures files/text anywhere except `/chat`, hands off via `src/lib/intake.ts`).
   - Scrollable `<main>` area.
 - **Dashboard** (`src/app/page.tsx`): left `AICore` (particle canvas) + greeting + input; right stack of `BriefingPanel`, `SystemMonitorPanel`, `WeatherPanel`, `TaskPanel`, `QuickAppsPanel`, `AIModelPanel`, `RecentActivityPanel`.
 
-19 application pages + 53 API route handlers.
+20 application pages + 55 API route handlers.
+
+### Capability layers
+
+TECHY is organised around ten capability layers:
+
+| Layer | Status | Notes |
+|---|---|---|
+| AI Core | Done | Streaming chat, specialist routing, offline skills |
+| Computer Control | New | Global `Ctrl+Space` overlay — `desktop/TechyLauncher.ps1` |
+| Voice | Done | Web Speech API wake word + dictation |
+| Vision | Partial | Image inspection for print (needs offline vision model) |
+| Memory | Done | Facts, preferences, knowledge base |
+| Agents | Done | 8 specialists + orchestrator |
+| Creative | Done | Artwork / print analysis |
+| Developer | Done | Git, logs, ports, scripts |
+| Automation | Done | WHEN/THEN workflows |
+| Local Services | Done | Files, apps, system, tasks, calendar |
+
+### Interaction surfaces
+
+- **Command palette** — in-app (`CommandMode`) and on the desktop via `desktop/techy-launcher.bat` (WinForms overlay, `RegisterHotKey` Ctrl+Space, always-on-top, borderless).
+- **Clipboard Intelligence** — `/clipboard` page + `desktop` watcher. Both call `POST /api/clipboard/intel` (classify) and `POST /api/clipboard/act` (transform), and `POST /api/memory` (save).
+- **Drag-and-Drop AI** — `DropZone` shows a HUD while a drag is over the window, routes files to `/chat?drop=1` (files become chat attachments via the module-level intake store) and text to `/clipboard?from=drop`.
 
 ---
 
@@ -104,8 +128,8 @@ When no model is available, the dispatcher matches offline skills by regex so co
 
 ### Chat (non-stream) — `api/chat/route.ts`
 
-- Environment: `OLLAMA_TAGS` / `OLLAMA_CHAT`, `SYSTEM_PROMPT`, `MAX_MESSAGES 20`.
-- `pickModel` prefers the personalized `branding.model` (case-insensitive, eager `name`/`name:` match) falling back to the first model in tags; `num_ctx 8192`, 60 s timeout.
+- Uses `src/lib/ai/ollama.ts` (`pickLocalModel`, `askLocalModel`, `TECHY_SYSTEM_PROMPT`) shared with the clipboard `act` route.
+- `MAX_MESSAGES 20`; `askLocalModel` prefers `branding.model` (case-insensitive, eager `name`/`name:` match) falling back to the first model in tags; `num_ctx 8192`, 60 s timeout.
 
 ### Streaming — `api/chat/stream/route.ts`
 
@@ -114,6 +138,30 @@ NDJSON stream with `meta` · `status` · `tool` · `delta` · `done` · `error` 
 - Constants: `OLLAMA_BASE`, `MAX_MESSAGES 24`, `MAX_TOOL_ROUNDS 3`, `MAX_CONTEXT_CHARS 48 000`.
 - `pickModel` implements the same `branding.model` preference.
 - Gates: when `security.localOnly` is set, the stream reports `meta.localOnly: true` and uses offline skills instead of hitting any network.
+
+### Clipboard Intelligence (`src/lib/clipboard.ts`, `/clipboard`)
+
+- **Classifier** (`classifyClipboard`) — deterministic, offline: `url · email · phone · address · code · table · image · plain`. Detection uses purpose-built regexes (URL/email/phone), a brace/keyword probe for code (`detectCode`), a separator-consistency check for tables (`detectTable`), and returns a per-kind action list.
+- **Transforms** (`runOfflineAction`) — fully offline fallbacks: `summarize` (sentence scoring), `improve/rewrite` (normalizer), `to markdown` (table → GFM), `format code` (JSON stringify or brace indent).
+- **`POST /api/clipboard/intel`** `{text}` → classification + actions (used by the page and the launcher).
+- **`POST /api/clipboard/act`** `{text, action}` → tries the local model via `askLocalModel` with an action-specific instruction; falls back to the offline transform or `reply: null` when a model is required but unavailable.
+- **Save** → `POST /api/memory` (`source: clipboard` / `launcher`).
+
+### Drag-and-Drop intake (`src/components/dnd/DropZone.tsx`, `src/lib/intake.ts`)
+
+- `DropZone` (client) tracks `dragenter/dragleave` depth on `window` and shows a HUD overlay (`z-[90]`, below the palette) while a drag is over the app.
+- Files → module-level intake store (`setPendingFiles` → `dispatchDroppedFiles` → `/chat?drop=1`); `ChatInterface` attaches them from the store on mount or via the `techy:drop` window event.
+- Plain-text drops → `setPendingText` → `/clipboard?from=drop`; `ClipboardIntel` auto-analyzes on mount or via `techy:droptext`.
+- Intentionally disabled while on `/chat` so the input's own drop handler stays the single owner there.
+
+### Desktop launcher (`desktop/TechyLauncher.ps1`)
+
+- Pure PowerShell 5.1 + WinForms + user32 P/Invoke — **no external dependencies**. ASCII-only source (PS 5.1 reads `.ps1` as ANSI).
+- Registers **global Ctrl+Space** (`RegisterHotKey(handle, 9001, MOD_CONTROL, VK_SPACE)`), always-on-top borderless form top-centered.
+- 600 ms clipboard timer → fingerprint compare → `POST /api/clipboard/intel` → action buttons rendered from `intel.actions`; buttons post `/api/clipboard/act`; Save posts `/api/memory`.
+- Query box → `POST /api/chat` (plain local chat).
+- Async calls run on `HttpClient` with a sequence guard (`$script:PendingJob`/`JobSeq`) marshalling UI updates through `$form.Invoke`.
+- `-SmokeTest` performs a connectivity + intel/act round-trip without showing UI.
 
 ---
 
@@ -140,6 +188,7 @@ Helper: `src/lib/http/response.ts` → `jsonResponse` (brotli → gzip for ≥51
 | Route | Methods |
 |---|---|
 | `/api/chat` · `/api/chat/stream` | POST (non-stream) · POST (NDJSON stream) |
+| `/api/clipboard/intel` · `/api/clipboard/act` | POST (classify) · POST (transform) |
 | `/api/conversations` · `/api/conversations/[id]` · `/api/conversations/[id]/messages` | GET/POST · GET/PATCH/DELETE · GET/POST |
 | `/api/memory` · `/api/memory/[id]` · `/api/memory/preferences[/[key]]` | GET/POST · DELETE · POST/DELETE |
 | `/api/branding` | GET/POST (personalization) |

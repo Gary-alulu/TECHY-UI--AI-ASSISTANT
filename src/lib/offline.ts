@@ -33,7 +33,7 @@ async function probeModel(): Promise<{ available: boolean; name: string | null }
   }
 }
 
-async function probeInternet(): Promise<boolean> {
+export async function probeInternet(): Promise<boolean> {
   if (cachedNet && Date.now() - cachedNet.at < 60_000) return cachedNet.online;
   let online = false;
   try {

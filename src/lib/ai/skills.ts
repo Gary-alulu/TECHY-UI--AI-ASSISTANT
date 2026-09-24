@@ -14,7 +14,7 @@ import { prepareForEvent } from "@/lib/prep";
 import { buildBriefing, formatBriefing } from "@/lib/briefing";
 import { getAutomations, runAutomation } from "@/lib/automation";
 import { getDeveloperSnapshot } from "@/lib/dev";
-import type { AppCategory, AgentId } from "@/types";
+import type { AppCategory, AgentId, SafeModeCapability } from "@/types";
 
 export interface SkillMatch {
   tool: string;
@@ -264,6 +264,67 @@ async function answerPreferences(rawInput: string, input: string): Promise<Skill
       tool: "push_memory",
       detail: "Preference",
       answer: fact ? `Noted — I'll remember that preference.` : `That preference is already remembered.`,
+    };
+  }
+
+  return null;
+}
+
+/** Synonym map from natural-language capability words to Safe Mode capabilities. */
+const CAPABILITY_SYNONYMS: Array<{ key: SafeModeCapability; pattern: RegExp }> = [
+  { key: "chat", pattern: /\b(ai )?chat(ting)?|conversation(s)?\b/ },
+  { key: "fileRead", pattern: /\bfile read(ing)?|read(ing)? files?|reading access|read access\b/ },
+  { key: "systemMonitor", pattern: /\bsystem monitor(ing)?|system metrics|hardware monitor(ing)?|monitor(ing)? (tools|system|metrics)\b/ },
+  { key: "fileModify", pattern: /\bfile modif(y|ication|ying)|writing files?|edit(ing)? files?|delet(ing|e) files?|renam(ing|e) files?|move(ing)? files?\b/ },
+  { key: "appControl", pattern: /\bapp control|open(ing)? apps?|launch(ing)? apps?|start(ing)? apps?|control(ling)? apps?\b/ },
+  { key: "terminal", pattern: /\b(terminal|shell|command prompt|powershell|running commands?|run commands?|scripts)\b/ },
+  { key: "automation", pattern: /\b(automation|automations|workflows?)\b/ },
+];
+
+async function answerSettings(rawInput: string, input: string): Promise<SkillMatch | null> {
+  const { getSafeMode, setSafeMode, setSafeCapability, SAFE_MODE_CAPABILITIES } = await import("@/lib/safemode");
+
+  const togglingSafeMode = /\bsafe[- ]mode\b/.test(input) && /\b(enable|turn(?:s)? on|switch(?:es|ed)? on|activate\w*|engage|disable|turn(?:s)? off|switch(?:es|ed)? off|deactivate\w*|stop|exit|off)\b/.test(input);
+  if (togglingSafeMode) {
+    const on = /\b(enable|turn(?:s)? on|switch(?:es|ed)? on|activate\w*|engage)\b/.test(input);
+    await setSafeMode(on);
+    return {
+      tool: "update_settings",
+      detail: on ? "Safe Mode enabled" : "Safe Mode disabled",
+      answer: on
+        ? "SAFE MODE is now ON. Chat and system monitoring stay available; file changes, app control, terminal and automations are blocked until you turn it off."
+        : "SAFE MODE is now OFF. Computer-control capabilities are restored to your configured settings.",
+      agent: "system",
+    };
+  }
+
+  const togglingCapability = /\b(enable|allow|permit|grant|turn on|switch on|disable|block|deny|revoke|turn off|switch off)\b/.test(input);
+  if (togglingCapability) {
+    const match = CAPABILITY_SYNONYMS.find((entry) => entry.pattern.test(input));
+    if (match) {
+      const allow = /\b(enable|allow|permit|grant|turn on|switch on)\b/.test(input);
+      await setSafeCapability(match.key, allow);
+      const meta = SAFE_MODE_CAPABILITIES.find((capability) => capability.key === match.key);
+      const state = await getSafeMode();
+      const allowed = SAFE_MODE_CAPABILITIES.filter((capability) => capability.key === "chat" || capability.key === "systemMonitor" || state.capabilities[capability.key]).map((capability) => capability.label);
+      return {
+        tool: "update_settings",
+        detail: `${meta?.label ?? match.key} ${allow ? "enabled" : "blocked"}`,
+        answer: `${meta?.label ?? match.key} is now ${allow ? "allowed" : "blocked"}${state.active ? " in SAFE MODE" : ""}. Currently on: ${allowed.join(", ")}.`,
+        agent: "system",
+      };
+    }
+  }
+
+  if (/\bsafe[- ]mode\b/.test(input) && /\b(on|active|enabled|status|state|is\b)\b/.test(input) || /\b(show|list|what are|which are).*\b(capabilities|allowed|blocked)\b/.test(input)) {
+    const state = await getSafeMode();
+    const allowed = SAFE_MODE_CAPABILITIES.filter((capability) => capability.key === "chat" || capability.key === "systemMonitor" || state.capabilities[capability.key]).map((capability) => capability.label);
+    const blocked = SAFE_MODE_CAPABILITIES.filter((capability) => state.active && state.capabilities[capability.key] === false).map((capability) => capability.label);
+    return {
+      tool: "update_settings",
+      detail: "Settings status",
+      answer: `SAFE MODE is ${state.active ? "ON" : "OFF"}.${state.active ? ` Currently allowed: ${allowed.join(", ")}${blocked.length ? `. Blocked: ${blocked.join(", ")}` : ""}.` : ""} You can switch it with “enable safe mode” / “disable safe mode”.`,
+      agent: "system",
     };
   }
 
@@ -608,6 +669,9 @@ export async function runSkillIfMatched(rawInput: string): Promise<SkillMatch | 
     const preference = await answerPreferences(rawInput, input);
     if (preference) return preference;
   }
+
+  const settings = await answerSettings(rawInput, input);
+  if (settings) return settings;
 
   if (
     /\b(does .*(document|file|note|documents|files|readme|report|manual)\w* (mention|contain|talk about|cover|refer to|say)|search .*(notes|documents|files|knowledge|docs) (for|about)|what (do|does) (my|the) (docs|documents|notes|files|reports) (say|mention)|look up .* from (my |the )?(docs|documents|notes|files|knowledge base))\b/.test(input)

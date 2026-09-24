@@ -6,6 +6,8 @@ import { useIsMobile } from "@/hooks/useMediaQuery";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { CommandMode } from "../command/CommandMode";
+import { DropZone } from "../dnd/DropZone";
+import { HudOverlay } from "../hud/HudOverlay";
 import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -44,8 +46,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
+      {/* Global Drag-and-Drop AI */}
+      <DropZone />
+
       {/* Global Command Mode */}
       <CommandMode />
+
+      {/* HUD / Developer Overlay */}
+      <HudOverlay />
     </div>
   );
 }

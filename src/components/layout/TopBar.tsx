@@ -5,7 +5,7 @@ import { useDateTime } from "@/hooks/useDateTime";
 import { useApp } from "@/context/AppContext";
 import { useBrand } from "@/context/BrandContext";
 import { useIsMobile } from "@/hooks/useMediaQuery";
-import { Wifi, WifiOff, Search, Mic, Radar } from "lucide-react";
+import { Wifi, WifiOff, Search, Mic, Radar, Crosshair } from "lucide-react";
 import { HUDButton } from "../ui/HUDButton";
 import { NotificationBell } from "../notifications/NotificationBell";
 
@@ -67,6 +67,16 @@ export function TopBar() {
             </span>
           </button>
         )}
+
+        {/* HUD toggle */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new Event("techy:hud-token"))}
+          title="Toggle HUD overlay"
+          className="w-9 h-9 rounded-full border border-slate-700/50 bg-navy-900/50 text-slate-400 hover:text-cyan-400 hover:border-slate-500 transition-colors flex items-center justify-center"
+        >
+          <Crosshair size={15} />
+        </button>
 
         {/* Global Mic Button */}
         <HUDButton

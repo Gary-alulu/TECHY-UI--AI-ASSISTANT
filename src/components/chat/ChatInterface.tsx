@@ -21,6 +21,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { takePendingFiles } from "@/lib/intake";
 import type { FileAttachment, Message, ToolExecution } from "@/types";
 
 interface ConversationSummary {
@@ -675,6 +676,28 @@ export function ChatInterface() {
       return next.slice(0, 8);
     });
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("drop") === "1") {
+      const frame = requestAnimationFrame(() => {
+        const files = takePendingFiles();
+        if (files.length > 0) handleAttach(files);
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+    return undefined;
+  }, [handleAttach]);
+
+  useEffect(() => {
+    const onDropped = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { files?: File[] } | undefined;
+      const files = detail?.files ?? [];
+      if (files.length > 0) handleAttach(files);
+    };
+    window.addEventListener("techy:drop", onDropped);
+    return () => window.removeEventListener("techy:drop", onDropped);
+  }, [handleAttach]);
 
   const handleRemoveAttachment = useCallback((id: string) => {
     attachFilesRef.current.delete(id);

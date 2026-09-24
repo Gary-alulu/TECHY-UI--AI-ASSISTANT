@@ -13,6 +13,7 @@ import { buildBriefing, formatBriefing } from "@/lib/briefing";
 import { getAutomations, runAutomation } from "@/lib/automation";
 import { getDeveloperSnapshot } from "@/lib/dev";
 import { inspectImage } from "@/lib/imaging";
+import type { SafeModeCapability } from "@/types";
 
 export interface ToolSpec {
   type: "function";
@@ -625,7 +626,42 @@ export const ACTIVITY_KIND: Record<string, "app" | "file" | "system" | "search" 
   prepare_meeting: "calendar",
 };
 
+/** Which Safe Mode capability gates each computer-control tool (unlisted tools are never blocked). */
+const TOOL_CAPABILITY: Record<string, SafeModeCapability> = {
+  get_system_metrics: "systemMonitor",
+  get_top_processes: "systemMonitor",
+  read_document: "fileRead",
+  search_knowledge: "fileRead",
+  inspect_image: "fileRead",
+  find_apps_by_category: "appControl",
+  search_installed_apps: "appControl",
+  open_application: "appControl",
+  run_automation: "automation",
+  get_developer_snapshot: "terminal",
+};
+
+/** True when Safe Mode is active and blocks the capability this tool belongs to. */
+export async function isToolBlocked(name: string): Promise<boolean> {
+  const capability = TOOL_CAPABILITY[name];
+  if (!capability) return false;
+  const { safeModeBlocks } = await import("@/lib/safemode");
+  return safeModeBlocks(capability);
+}
+
+export function toolCapability(name: string): SafeModeCapability | null {
+  return TOOL_CAPABILITY[name] ?? null;
+}
+
 export async function executeTool(name: string, args: unknown): Promise<ToolResult> {
+  if (await isToolBlocked(name)) {
+    try {
+      const { logActivity } = await import("@/lib/activity");
+      await logActivity({ actor: "user", kind: "security", action: `Blocked: ${name}`, detail: "Safe Mode" });
+    } catch {
+      // activity is best-effort
+    }
+    return { ok: false, output: "", error: `Blocked by SAFE MODE (${toolCapability(name)}). Enable it under Safe Mode to allow this.` };
+  }
   const executor = EXECUTORS[name];
   if (!executor) return { ok: false, output: "", error: `Unknown tool: ${name}` };
   try {

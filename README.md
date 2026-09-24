@@ -26,9 +26,14 @@ Conversations are routed to specialist agents based on intent:
 
 When a local model (Ollama) is unavailable, offline **skills** answer common requests so the assistant never stops working.
 
-### Command Mode (`Ctrl+Space`)
-A global, futuristic command palette. Type what you want outside the chat —
-"Find the latest proposal and summarize it" — and TECHY routes it to the right surface, or answers it in chat. Filter with **All / Files / Apps / System / Web / AI** chips, or `Ctrl+K` as a shortcut fallback.
+### Universal Command Palette (`Ctrl+Space`)
+TECHY's signature interaction. Tap `Ctrl+Space` anywhere and the palette appears — over the app *and* over any other application via the native desktop launcher. Type what you want outside the chat — "Find the latest proposal and summarize it" — and TECHY routes it to the right surface, or answers it in chat. Filter with **All / Files / Apps / System / Web / AI** chips, or `Ctrl+K` as a shortcut fallback.
+
+### Clipboard Intelligence (`/clipboard`)
+TECHY watches the clipboard and classifies what lands in it — URLs, code, tables, emails, phone numbers, addresses, images or plain text — then offers context actions: **summarize, explain, rewrite, translate, improve, format code, to markdown, analyze, draft reply** and **Save to memory**. Detection and deterministic transforms (summary, normalize, table→markdown, format) run fully offline; deeper transformations use the local model when connected. The desktop launcher brings these actions to any app via `desktop/techy-launcher.bat`.
+
+### Drag-and-Drop AI
+Drop almost anything onto TECHY — PDF, image, audio, video, spreadsheet, code, archive — and a HUD appears ("DROP ANYTHING") while TECHY decides what it can do. Files drop straight into the chat as attachments; plain text you drag in is auto-analyzed on the Clipboard page.
 
 ### Personalization
 Fully adjustable identity and appearance, persisted to `data/branding.json`:
@@ -39,6 +44,7 @@ Fully adjustable identity and appearance, persisted to `data/branding.json`:
 
 ### Local Productivity Suite
 - **Chat** — streaming NDJSON responses, attachments (docx / pdf / xlsx / images), markdown rendering, conversation history, export to Markdown/JSON
+- **Clipboard** — clipboard intelligence + action transforms (see above)
 - **Tasks & Reminders** — priorities, repeats, snooze, reminder log
 - **Calendar** — events, meeting-prep assistant
 - **Projects** — workspace project tracking (design + document files)
@@ -88,6 +94,15 @@ npm run build
 npm run start        # serves the optimized build on :3000
 ```
 
+### Desktop Launcher (global overlay)
+
+```bash
+desktop\techy-launcher.bat          # Ctrl+Space above any app + clipboard watch
+desktop\techy-launcher.bat --smoke  # connectivity smoke test
+```
+
+The launcher is a native Windows form (no dependencies) that registers a **global Ctrl+Space hotkey**, watches the clipboard, and talks to the local TECHY server over `/api/clipboard/*`, `/api/chat` and `/api/memory`.
+
 ### Scripts
 
 | Script | Description |
@@ -107,9 +122,9 @@ techy/
 ├─ src/
 │  ├─ app/
 │  │  ├─ api/            # 53 route handlers (see docs/SYSTEM.md)
-│  │  ├─ (pages)         # chat, voice, files, system, tasks, calendar, automations,
-│  │  │                  # projects, designer, apps, agents, plugins, developer,
-│  │  │                  # security, activity, offline, settings, home
+│  │  ├─ (pages)         # chat, voice, clipboard, files, system, tasks, calendar,
+│  │  │                  # automations, projects, designer, apps, agents, plugins,
+│  │  │                  # developer, security, activity, offline, settings, home
 │  │  ├─ layout.tsx      # Root layout: Fonts → AppProvider → BrandProvider
 │  │  └─ globals.css     # Design system (navy/cyan/violet tokens, HUD utilities)
 │  ├─ components/
@@ -119,6 +134,8 @@ techy/
 │  │  ├─ dashboard/      # AICore, BriefingPanel, SystemMonitorPanel, TaskPanel, ...
 │  │  ├─ panels/ish      # Feature components grouped by area
 │  │  ├─ command/        # CommandMode (Ctrl+Space palette)
+│  │  ├─ clipboard/      # ClipboardIntel (detect + act + save)
+│  │  ├─ dnd/            # DropZone (global Drag-and-Drop AI overlay)
 │  │  ├─ offline/        # OfflineStatusPanel
 │  │  ├─ personalize/    # PersonalizationPanel
 │  │  └─ settings/       # MemoryPanel, SecurityPanel
@@ -131,6 +148,7 @@ techy/
 │  ├─ types/             # Shared TypeScript types
 │  └─ lib/http/response.ts  # jsonResponse helper (brotli→gzip, Vary)
 ├─ data/                 # Local state (gitignored, see below)
+├─ desktop/              # TechyLauncher.ps1 + techy-launcher.bat (global overlay)
 └─ docs/SYSTEM.md        # Deep-dive system documentation
 ```
 
